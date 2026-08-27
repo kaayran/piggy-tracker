@@ -1,0 +1,10 @@
+# Infrastructure notes: server addresses, ports, keys. Local only.
+*.local.md
+
+.env
+.env.*
+
+node_modules/
+dist/
+
+/piggy
