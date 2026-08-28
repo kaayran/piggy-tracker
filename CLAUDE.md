@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Project context: [README.md](./README.md) (stack, layout), [DESIGN.md](./docs/DESIGN.md) (product decisions, data model, v1 scope).
+Project context: [README.md](./README.md) (stack, layout), [DESIGN.md](./docs/DESIGN.md) (cross-cutting product decisions), [docs/features/](./docs/features) (one spec per feature, with its data model).
 
 ## Approach
 
@@ -16,7 +16,7 @@ understanding the problem, input validation, error handling or accessibility.
 - No comments in code unless explicitly asked.
 - `api/openapi.yaml` is the source of truth. Change the contract first, then regenerate types for both sides — never hand-write what is generated.
 - Don't add UI kits or CSS frameworks. Telegram theme variables `--tg-theme-*` plus own components.
-- Stay inside v1 scope (DESIGN.md §9, §10). Out-of-scope ideas go into the doc, not into the code.
+- Scope is what has a spec in `docs/features/`. A new idea gets a spec first, then code — never the other way round.
 
 ## Commits
 
