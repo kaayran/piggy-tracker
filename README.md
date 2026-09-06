@@ -24,3 +24,18 @@ with their slice of the data model — in [docs/features](./docs/features).
 /web                    React + Vite
 /api/openapi.yaml       the contract; types for both sides are generated from it
 ```
+
+## Running locally
+
+```sh
+cp .env.example .env      # fill in BOT_TOKEN from @BotFather
+make initdata             # prints a signed initData → paste into VITE_DEV_INIT_DATA
+make dev                  # Postgres in Docker, Go on :8080, Vite on :5173
+```
+
+Migrations run from the binary at startup. There is no auth bypass: outside Telegram the app
+sends the `initData` from `VITE_DEV_INIT_DATA`, which the server verifies like any other —
+it is signed with the same bot token and expires after 24 hours.
+
+`make gen` regenerates the types on both sides from `api/openapi.yaml`, `make test` runs the
+Go tests, `make build` produces a single binary with the frontend embedded.
