@@ -22,7 +22,8 @@ understanding the problem, input validation, error handling or accessibility.
 
 - One short line, under 150 characters, imperative mood. No body unless the change is genuinely non-obvious.
 - No `Co-Authored-By`, no `Generated with`, no agent attribution.
-- Commit only when asked.
+- Commit only when asked, or as part of the `ship` skill.
+- Work goes to `master` through a PR: finish the feature, then run the `ship` skill. Never push to `master`, never merge.
 
 Good: `add transaction create endpoint`
 Bad: `feat(api): add transaction create endpoint with validation, error handling and tests` + three paragraphs.
