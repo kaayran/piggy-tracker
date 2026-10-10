@@ -8,3 +8,10 @@ node_modules/
 dist/
 
 /piggy
+
+/api/webdist/*
+!/api/webdist/.gitkeep
+
+/api/api.exe
+/api/piggy
+*.tsbuildinfo

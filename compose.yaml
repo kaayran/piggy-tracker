@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: piggy
+      POSTGRES_PASSWORD: piggy
+      POSTGRES_DB: piggy
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - piggy-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U piggy"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  piggy-db:

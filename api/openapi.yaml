@@ -1,0 +1,293 @@
+openapi: 3.0.3
+info:
+  title: Piggy Tracker API
+  version: 0.1.0
+
+servers:
+  - url: /api
+
+security:
+  - telegramInitData: []
+
+paths:
+  /me:
+    get:
+      operationId: getMe
+      summary: Current user with their personal context, accounts and categories
+      description: >
+        Creates the user, their personal context, a default account and the default
+        category set on first call. Idempotent.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      summary: Transactions of the personal context within a date range
+      parameters:
+        - name: from
+          in: query
+          description: Inclusive lower bound. Defaults to the first day of the current month.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Inclusive upper bound. Defaults to today.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createTransaction
+      summary: Record a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewTransaction"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /transactions/{id}:
+    delete:
+      operationId: deleteTransaction
+      summary: Delete a transaction
+      description: The author may delete their own; the context owner may delete anyone's.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    telegramInitData:
+      type: apiKey
+      in: header
+      name: X-Telegram-Init-Data
+
+  responses:
+    Error:
+      description: Something went wrong
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: invalid_amount
+        message:
+          type: string
+
+    Amount:
+      type: string
+      description: A positive decimal with at most two fraction digits.
+      pattern: '^\d{1,16}(\.\d{1,2})?$'
+      example: "1250.00"
+
+    Currency:
+      type: string
+      description: ISO 4217 alphabetic code.
+      pattern: "^[A-Z]{3}$"
+      example: EUR
+
+    TransactionType:
+      type: string
+      enum: [expense, income, transfer]
+
+    CategoryKind:
+      type: string
+      enum: [expense, income]
+
+    User:
+      type: object
+      required: [id, first_name, base_currency]
+      properties:
+        id:
+          type: integer
+          format: int64
+        first_name:
+          type: string
+        username:
+          type: string
+        language_code:
+          type: string
+        base_currency:
+          $ref: "#/components/schemas/Currency"
+
+    Context:
+      type: object
+      required: [id, kind, name, owner_id, base_currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [personal, group]
+        name:
+          type: string
+        owner_id:
+          type: integer
+          format: int64
+        base_currency:
+          $ref: "#/components/schemas/Currency"
+
+    Account:
+      type: object
+      required: [id, name, currency, initial_balance]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        currency:
+          $ref: "#/components/schemas/Currency"
+        initial_balance:
+          type: string
+          example: "0.00"
+
+    Category:
+      type: object
+      required: [id, kind, name, icon]
+      properties:
+        id:
+          type: string
+          format: uuid
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        kind:
+          $ref: "#/components/schemas/CategoryKind"
+        name:
+          type: string
+        icon:
+          type: string
+
+    Me:
+      type: object
+      required: [user, context, accounts, categories]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        context:
+          $ref: "#/components/schemas/Context"
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+
+    NewTransaction:
+      type: object
+      required: [type, account_id, amount, occurred_on]
+      properties:
+        type:
+          $ref: "#/components/schemas/TransactionType"
+        account_id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          $ref: "#/components/schemas/Amount"
+        occurred_on:
+          type: string
+          format: date
+        note:
+          type: string
+          maxLength: 500
+
+    Transaction:
+      type: object
+      required:
+        [id, author_id, type, account_id, amount, currency, rate, occurred_on, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        author_id:
+          type: integer
+          format: int64
+        type:
+          $ref: "#/components/schemas/TransactionType"
+        account_id:
+          type: string
+          format: uuid
+        to_account_id:
+          type: string
+          format: uuid
+          nullable: true
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          $ref: "#/components/schemas/Amount"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        rate:
+          type: string
+          example: "1"
+        occurred_on:
+          type: string
+          format: date
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
