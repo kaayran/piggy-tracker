@@ -22,7 +22,8 @@ understanding the problem, input validation, error handling or accessibility.
 
 - One short line, under 150 characters, imperative mood. No body unless the change is genuinely non-obvious.
 - No `Co-Authored-By`, no `Generated with`, no agent attribution.
-- Plain commits, no pull requests. Commit when asked; push only when asked.
+- Work directly on `master`: no feature branches, no pull requests. Commit when asked; push only when asked.
+- Push as `kaayran`, otherwise HTTPS resolves to an account without write access: `gh auth switch -u kaayran` with `!gh auth git-credential` as the repo's credential helper.
 
 Good: `add transaction create endpoint`
 Bad: `feat(api): add transaction create endpoint with validation, error handling and tests` + three paragraphs.
