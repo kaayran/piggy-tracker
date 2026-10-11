@@ -36,7 +36,7 @@ func serverErr(w http.ResponseWriter, err error) {
 }
 
 func (s *server) handleGetMe(w http.ResponseWriter, r *http.Request) {
-	me, err := s.loadMe(r.Context(), userFrom(r.Context()))
+	me, err := s.loadMe(r.Context(), userID(r.Context()))
 	if err != nil {
 		serverErr(w, err)
 		return
@@ -62,7 +62,7 @@ func (s *server) handleListTransactions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	contextID, _, err := s.personalContext(r.Context(), userFrom(r.Context()).ID)
+	contextID, _, err := s.personalContext(r.Context(), userID(r.Context()))
 	if err != nil {
 		serverErr(w, err)
 		return
@@ -94,14 +94,14 @@ func (s *server) handleCreateTransaction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user := userFrom(r.Context())
-	contextID, _, err := s.personalContext(r.Context(), user.ID)
+	uid := userID(r.Context())
+	contextID, _, err := s.personalContext(r.Context(), uid)
 	if err != nil {
 		serverErr(w, err)
 		return
 	}
 
-	currency, kind, err := s.accountAndCategory(r.Context(), contextID, user.ID, in.AccountId, in.CategoryId)
+	currency, kind, err := s.accountAndCategory(r.Context(), contextID, uid, in.AccountId, in.CategoryId)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeErr(w, http.StatusBadRequest, "unknown_account", "no such account in this context")
 		return
@@ -119,7 +119,7 @@ func (s *server) handleCreateTransaction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	created, err := s.createTransaction(r.Context(), contextID, user.ID, in, currency)
+	created, err := s.createTransaction(r.Context(), contextID, uid, in, currency)
 	if err != nil {
 		serverErr(w, err)
 		return
@@ -160,8 +160,8 @@ func (s *server) handleDeleteTransaction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user := userFrom(r.Context())
-	contextID, ownerID, err := s.personalContext(r.Context(), user.ID)
+	uid := userID(r.Context())
+	contextID, ownerID, err := s.personalContext(r.Context(), uid)
 	if err != nil {
 		serverErr(w, err)
 		return
@@ -179,7 +179,7 @@ func (s *server) handleDeleteTransaction(w http.ResponseWriter, r *http.Request)
 		serverErr(w, err)
 		return
 	}
-	if authorID != user.ID && ownerID != user.ID {
+	if authorID != uid && ownerID != uid {
 		writeErr(w, http.StatusForbidden, "forbidden", "only the author or the context owner may delete this")
 		return
 	}

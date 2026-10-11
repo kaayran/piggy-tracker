@@ -1,14 +1,15 @@
 # Contexts
 
 The core entity. A user belongs to one personal context and to N group contexts; the context is
-picked when entering the app. A group context is our own object, not a binding to a Telegram
-chat — who is in a budget is not who is in a chat.
+picked when entering the app. A group context is our own object with explicit membership: who is
+in a budget is decided by its owner, nothing else.
 
 ## Requirements
 
-**First launch.** A user row is created from Telegram's `initData`. `base_currency` is guessed
-from `language_code` and can be changed. A personal context is created automatically — the user
-never sees an empty app asking them to set something up first.
+**First launch.** The user row comes from the first sign-in (see [auth](./auth.md)).
+`base_currency` is guessed from the browser's `Accept-Language` and can be changed. A personal
+context is created automatically — the user never sees an empty app asking them to set something
+up first.
 
 **Visibility.** All members of a group see all transactions of one another: author, amount,
 category, account, note. There are no hidden or private transactions.
@@ -32,19 +33,14 @@ retroactively.
 member; a context is never left ownerless.
 
 **Invites.** A single-use link with a 24-hour TTL. The token and its expiry live in the context
-row — no separate table. The owner generates the link, shares it through native Telegram share,
-and joining happens via the deep link `t.me/<bot>?startapp=<token>`.
+row — no separate table. The owner generates the link `https://<host>/invite/<token>` and shares
+it through the Web Share API, with copy-to-clipboard where sharing is unavailable. Opening the
+link signed out goes through sign-in first and then joins.
 
 ## Data model
 
 ```
-users
-  id              bigint PK          -- telegram user id
-  first_name      text
-  username        text
-  language_code   text
-  base_currency   char(3)
-  created_at      timestamptz
+users -- see auth
 
 contexts
   id                 uuid PK
@@ -63,3 +59,5 @@ context_members
   joined_at   timestamptz
   PK (context_id, user_id)
 ```
+
+Depends on: [auth](./auth.md).

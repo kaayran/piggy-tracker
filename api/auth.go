@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -13,47 +14,42 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
-const initDataHeader = "X-Telegram-Init-Data"
+const (
+	loginMaxAge   = 24 * time.Hour
+	sessionCookie = "session"
+	sessionTTL    = 30 * 24 * time.Hour
+)
 
-const initDataMaxAge = 24 * time.Hour
-
-var errUnauthorized = errors.New("invalid init data")
+var errUnauthorized = errors.New("invalid login payload")
 
 type tgUser struct {
-	ID           int64  `json:"id"`
-	FirstName    string `json:"first_name"`
-	Username     string `json:"username"`
-	LanguageCode string `json:"language_code"`
+	ID        int64
+	FirstName string
+	Username  string
 }
 
 type ctxKey struct{}
 
-func userFrom(ctx context.Context) tgUser {
-	return ctx.Value(ctxKey{}).(tgUser)
+func userID(ctx context.Context) int64 {
+	return ctx.Value(ctxKey{}).(int64)
 }
 
-// verifyInitData checks the HMAC that Telegram puts on initData and returns the user it
-// carries. Everything about a request's identity comes from here and nowhere else.
-func verifyInitData(raw, botToken string, now time.Time) (tgUser, error) {
-	values, err := url.ParseQuery(raw)
-	if err != nil {
-		return tgUser{}, errUnauthorized
-	}
-
+// verifyLogin checks the HMAC that Telegram puts on a Login Widget payload and returns the
+// user it carries. Everything about a request's identity comes from here and nowhere else.
+func verifyLogin(values url.Values, botToken string, now time.Time) (tgUser, error) {
 	pairs := make([]string, 0, len(values))
 	var gotHash string
 	for key, vs := range values {
 		if len(vs) != 1 {
 			return tgUser{}, errUnauthorized
 		}
-		switch key {
-		case "hash":
+		if key == "hash" {
 			gotHash = vs[0]
-		case "signature":
-			// Ed25519 over the same string; it cannot be part of what it signs.
-		default:
+		} else {
 			pairs = append(pairs, key+"="+vs[0])
 		}
 	}
@@ -67,25 +63,22 @@ func verifyInitData(raw, botToken string, now time.Time) (tgUser, error) {
 		return tgUser{}, errUnauthorized
 	}
 	age := now.Sub(time.Unix(authDate, 0))
-	if age > initDataMaxAge || age < -time.Minute {
+	if age > loginMaxAge || age < -time.Minute {
 		return tgUser{}, errUnauthorized
 	}
 
-	secret := hmacSHA256([]byte("WebAppData"), botToken)
-	want := hmacSHA256(secret, strings.Join(pairs, "\n"))
+	secret := sha256.Sum256([]byte(botToken))
+	want := hmacSHA256(secret[:], strings.Join(pairs, "\n"))
 	got, err := hex.DecodeString(gotHash)
 	if err != nil || !hmac.Equal(want, got) {
 		return tgUser{}, errUnauthorized
 	}
 
-	var u tgUser
-	if err := json.Unmarshal([]byte(values.Get("user")), &u); err != nil {
+	id, err := strconv.ParseInt(values.Get("id"), 10, 64)
+	if err != nil || id <= 0 || values.Get("first_name") == "" {
 		return tgUser{}, errUnauthorized
 	}
-	if u.ID <= 0 || u.FirstName == "" {
-		return tgUser{}, errUnauthorized
-	}
-	return u, nil
+	return tgUser{ID: id, FirstName: values.Get("first_name"), Username: values.Get("username")}, nil
 }
 
 func hmacSHA256(key []byte, msg string) []byte {
@@ -94,13 +87,126 @@ func hmacSHA256(key []byte, msg string) []byte {
 	return m.Sum(nil)
 }
 
-func (s *server) authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u, err := verifyInitData(r.Header.Get(initDataHeader), s.botToken, time.Now())
-		if err != nil {
-			writeErr(w, http.StatusUnauthorized, "unauthorized", "invalid or missing init data")
+func hashToken(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
+}
+
+func (s *server) handleSignIn(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		writeErr(w, http.StatusForbidden, "cross_site", "sign-in must come from this site")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	if err := r.ParseForm(); err != nil {
+		writeErr(w, http.StatusUnauthorized, "unauthorized", "invalid login payload")
+		return
+	}
+	u, err := verifyLogin(r.PostForm, s.botToken, time.Now())
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "unauthorized", "invalid login payload")
+		return
+	}
+
+	token, err := s.signIn(r.Context(), u, r.Header.Get("Accept-Language"))
+	if err != nil {
+		serverErr(w, err)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   int(sessionTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   isHTTPS(r),
+		SameSite: http.SameSiteLaxMode,
+	})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) signIn(ctx context.Context, u tgUser, acceptLanguage string) (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		insert into users (id, first_name, username, base_currency)
+		values ($1, $2, nullif($3, ''), $4)
+		on conflict (id) do update
+			set first_name = excluded.first_name,
+			    username = excluded.username`,
+		u.ID, u.FirstName, u.Username, guessCurrency(primaryLanguage(acceptLanguage)),
+	); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, `delete from sessions where expires_at < now()`); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into sessions (token_hash, user_id, expires_at) values ($1, $2, $3)`,
+		hashToken(token), u.ID, time.Now().Add(sessionTTL),
+	); err != nil {
+		return "", err
+	}
+	return token, tx.Commit(ctx)
+}
+
+func (s *server) handleSignOut(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(sessionCookie); err == nil {
+		if _, err := s.db.Exec(r.Context(), `delete from sessions where token_hash = $1`, hashToken(c.Value)); err != nil {
+			serverErr(w, err)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, u)))
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   isHTTPS(r),
+		SameSite: http.SameSiteLaxMode,
 	})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := r.Cookie(sessionCookie)
+		if err != nil {
+			writeErr(w, http.StatusUnauthorized, "unauthorized", "not signed in")
+			return
+		}
+		var id int64
+		err = s.db.QueryRow(r.Context(), `
+			select user_id from sessions where token_hash = $1 and expires_at > now()`,
+			hashToken(c.Value)).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeErr(w, http.StatusUnauthorized, "unauthorized", "not signed in")
+			return
+		}
+		if err != nil {
+			serverErr(w, err)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, id)))
+	})
+}
+
+func isHTTPS(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+}
+
+func primaryLanguage(acceptLanguage string) string {
+	lang, _, _ := strings.Cut(acceptLanguage, ",")
+	lang, _, _ = strings.Cut(lang, ";")
+	return strings.TrimSpace(lang)
 }

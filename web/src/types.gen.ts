@@ -4,6 +4,43 @@
  */
 
 export interface paths {
+    "/auth/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a Telegram Login Widget payload for a session cookie
+         * @description Verifies the payload, creates the user on first sign-in and sets the session cookie. Refuses cross-site requests.
+         */
+        post: operations["signIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the current session */
+        post: operations["signOut"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -13,7 +50,7 @@ export interface paths {
         };
         /**
          * Current user with their personal context, accounts and categories
-         * @description Creates the user, their personal context, a default account and the default category set on first call. Idempotent.
+         * @description Creates the personal context, a default account and the default category set on first call. Idempotent.
          */
         get: operations["getMe"];
         put?: never;
@@ -90,8 +127,19 @@ export interface components {
             id: number;
             first_name: string;
             username?: string;
-            language_code?: string;
             base_currency: components["schemas"]["Currency"];
+        };
+        /** @description Exactly what the Telegram Login Widget returns; every field takes part in the hash. */
+        TelegramLogin: {
+            /** Format: int64 */
+            id: number;
+            first_name: string;
+            last_name?: string;
+            username?: string;
+            photo_url?: string;
+            /** Format: int64 */
+            auth_date: number;
+            hash: string;
         };
         Context: {
             /** Format: uuid */
@@ -178,6 +226,48 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    signIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["TelegramLogin"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    signOut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getMe: {
         parameters: {
             query?: never;

@@ -59,9 +59,9 @@ var defaultIncomeCategories = []defaultCategory{
 	{name: "Other", icon: "💸"},
 }
 
-// loadMe creates the user, their personal context, a starting account and the default
-// categories on first call, and returns the same picture on every call after that.
-func (s *server) loadMe(ctx context.Context, tu tgUser) (Me, error) {
+// loadMe creates the personal context, a starting account and the default categories on
+// first call, and returns the same picture on every call after that.
+func (s *server) loadMe(ctx context.Context, uid int64) (Me, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return Me{}, err
@@ -70,15 +70,8 @@ func (s *server) loadMe(ctx context.Context, tu tgUser) (Me, error) {
 
 	var me Me
 	err = tx.QueryRow(ctx, `
-		insert into users (id, first_name, username, language_code, base_currency)
-		values ($1, $2, nullif($3, ''), nullif($4, ''), $5)
-		on conflict (id) do update
-			set first_name = excluded.first_name,
-			    username = excluded.username,
-			    language_code = excluded.language_code
-		returning id, first_name, username, language_code, base_currency`,
-		tu.ID, tu.FirstName, tu.Username, tu.LanguageCode, guessCurrency(tu.LanguageCode),
-	).Scan(&me.User.Id, &me.User.FirstName, &me.User.Username, &me.User.LanguageCode, &me.User.BaseCurrency)
+		select id, first_name, username, base_currency from users where id = $1`, uid,
+	).Scan(&me.User.Id, &me.User.FirstName, &me.User.Username, &me.User.BaseCurrency)
 	if err != nil {
 		return Me{}, err
 	}
@@ -89,14 +82,14 @@ func (s *server) loadMe(ctx context.Context, tu tgUser) (Me, error) {
 		values ('personal', $1, $2, $3)
 		on conflict (owner_id) where kind = 'personal' do nothing
 		returning id, kind, name, owner_id, base_currency`,
-		tu.FirstName, tu.ID, me.User.BaseCurrency,
+		me.User.FirstName, uid, me.User.BaseCurrency,
 	).Scan(&me.Context.Id, &me.Context.Kind, &me.Context.Name, &me.Context.OwnerId, &me.Context.BaseCurrency)
 	if errors.Is(err, pgx.ErrNoRows) {
 		created = false
 		err = tx.QueryRow(ctx, `
 			select id, kind, name, owner_id, base_currency
 			from contexts where owner_id = $1 and kind = 'personal'`,
-			tu.ID,
+			uid,
 		).Scan(&me.Context.Id, &me.Context.Kind, &me.Context.Name, &me.Context.OwnerId, &me.Context.BaseCurrency)
 	}
 	if err != nil {
@@ -104,7 +97,7 @@ func (s *server) loadMe(ctx context.Context, tu tgUser) (Me, error) {
 	}
 
 	if created {
-		if err := seedContext(ctx, tx, me.Context.Id, tu.ID, me.Context.BaseCurrency); err != nil {
+		if err := seedContext(ctx, tx, me.Context.Id, uid, me.Context.BaseCurrency); err != nil {
 			return Me{}, err
 		}
 	}

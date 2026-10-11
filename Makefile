@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: dev db gen test build initdata
+.PHONY: dev db gen test build devlogin
 
 dev: db
 	trap 'kill 0' EXIT; \
@@ -28,5 +28,5 @@ build:
 	cd web && npm ci && npm run build
 	cd api && go build -o piggy .
 
-initdata:
-	cd api && go run ./cmd/initdata
+devlogin:
+	cd api && go run ./cmd/devlogin

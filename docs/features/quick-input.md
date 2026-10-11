@@ -10,11 +10,11 @@ casually.
   at review, and a change that breaks it does not ship.
 - Field order: `date → amount → category → account → note`.
 - Date defaults to today and is changed in one tap.
-- The screen opens straight onto the numeric keypad, cursor in the amount.
+- The screen opens with the cursor in the amount and the decimal keypad (`inputMode="decimal"`).
 - Category is a grid of icons, most recently used first.
 - Account is preselected to the last used one.
 - Note is optional and collapsed.
-- Saving is Telegram's native `MainButton`.
+- Saving is a full-width button at the bottom of the form; Enter in the amount saves too.
 - Anything that cannot fit in the budget goes behind an explicit "more" step, never into the
   default path.
 

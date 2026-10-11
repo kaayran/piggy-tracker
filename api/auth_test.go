@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
 	"sort"
@@ -12,76 +13,76 @@ import (
 
 const testToken = "123456:test-bot-token"
 
-func signed(t *testing.T, fields map[string]string) string {
-	t.Helper()
+func signedWith(token string, fields map[string]string) url.Values {
 	pairs := make([]string, 0, len(fields))
-	for k, v := range fields {
-		if k != "signature" {
-			pairs = append(pairs, k+"="+v)
-		}
-	}
-	sort.Strings(pairs)
-	sum := hmacSHA256(hmacSHA256([]byte("WebAppData"), testToken), strings.Join(pairs, "\n"))
-
 	q := url.Values{}
 	for k, v := range fields {
+		pairs = append(pairs, k+"="+v)
 		q.Set(k, v)
 	}
-	q.Set("hash", hex.EncodeToString(sum))
-	return q.Encode()
+	sort.Strings(pairs)
+	secret := sha256.Sum256([]byte(token))
+	q.Set("hash", hex.EncodeToString(hmacSHA256(secret[:], strings.Join(pairs, "\n"))))
+	return q
 }
 
 func validFields(now time.Time) map[string]string {
 	return map[string]string{
-		"auth_date": strconv.FormatInt(now.Unix(), 10),
-		"query_id":  "AAH123",
-		"user":      `{"id":42,"first_name":"Ann","username":"ann","language_code":"ru"}`,
+		"id":         "42",
+		"first_name": "Ann",
+		"username":   "ann",
+		"photo_url":  "https://t.me/i/userpic/320/ann.jpg",
+		"auth_date":  strconv.FormatInt(now.Unix(), 10),
 	}
 }
 
-func TestVerifyInitData(t *testing.T) {
+func TestVerifyLogin(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 
-	tampered := signed(t, validFields(now))
-	tampered = strings.Replace(tampered, "Ann", "Bob", 1)
+	tampered := signedWith(testToken, validFields(now))
+	tampered.Set("first_name", "Bob")
 
-	stale := validFields(now.Add(-25 * time.Hour))
+	wrongHash := signedWith(testToken, validFields(now))
+	wrongHash.Set("hash", "00"+wrongHash.Get("hash"))
 
-	future := validFields(now.Add(time.Hour))
+	noHash := signedWith(testToken, validFields(now))
+	noHash.Del("hash")
 
-	noUser := validFields(now)
-	delete(noUser, "user")
+	noName := validFields(now)
+	delete(noName, "first_name")
 
-	withSignature := validFields(now)
-	withSignature["signature"] = "ed25519-blob"
+	badID := validFields(now)
+	badID["id"] = "-1"
+
+	duplicate := signedWith(testToken, validFields(now))
+	duplicate.Add("id", "1")
 
 	tests := []struct {
 		name string
-		raw  string
+		in   url.Values
 		ok   bool
 	}{
-		{"valid", signed(t, validFields(now)), true},
-		{"signature is not part of the hash", signed(t, withSignature), true},
-		{"missing header", "", false},
-		{"not a query string", "%zz", false},
+		{"valid", signedWith(testToken, validFields(now)), true},
+		{"empty", url.Values{}, false},
 		{"tampered field", tampered, false},
-		{"wrong hash", strings.Replace(signed(t, validFields(now)), "hash=", "hash=00", 1), false},
-		{"no hash", url.Values{"auth_date": {"1800000000"}}.Encode(), false},
-		{"stale auth_date", signed(t, stale), false},
-		{"auth_date in the future", signed(t, future), false},
-		{"missing user", signed(t, noUser), false},
-		{"duplicate key", signed(t, validFields(now)) + "&user=%7B%22id%22%3A1%7D", false},
-		{"signed by another token", signedWith(t, "999:other", validFields(now)), false},
+		{"wrong hash", wrongHash, false},
+		{"no hash", noHash, false},
+		{"stale auth_date", signedWith(testToken, validFields(now.Add(-25*time.Hour))), false},
+		{"auth_date in the future", signedWith(testToken, validFields(now.Add(time.Hour))), false},
+		{"missing first_name", signedWith(testToken, noName), false},
+		{"non-positive id", signedWith(testToken, badID), false},
+		{"duplicate key", duplicate, false},
+		{"signed by another token", signedWith("999:other", validFields(now)), false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			u, err := verifyInitData(tc.raw, testToken, now)
+			u, err := verifyLogin(tc.in, testToken, now)
 			if tc.ok {
 				if err != nil {
 					t.Fatalf("want ok, got %v", err)
 				}
-				if u.ID != 42 || u.FirstName != "Ann" || u.LanguageCode != "ru" {
+				if u.ID != 42 || u.FirstName != "Ann" || u.Username != "ann" {
 					t.Fatalf("unexpected user %+v", u)
 				}
 				return
@@ -93,19 +94,15 @@ func TestVerifyInitData(t *testing.T) {
 	}
 }
 
-func signedWith(t *testing.T, token string, fields map[string]string) string {
-	t.Helper()
-	pairs := make([]string, 0, len(fields))
-	for k, v := range fields {
-		pairs = append(pairs, k+"="+v)
+func TestPrimaryLanguage(t *testing.T) {
+	for in, want := range map[string]string{
+		"ru-RU,ru;q=0.9,en;q=0.8": "RUB",
+		"de":                      "EUR",
+		"":                        "USD",
+		"xx-YY":                   "USD",
+	} {
+		if got := guessCurrency(primaryLanguage(in)); got != want {
+			t.Errorf("%q: got %s, want %s", in, got, want)
+		}
 	}
-	sort.Strings(pairs)
-	sum := hmacSHA256(hmacSHA256([]byte("WebAppData"), token), strings.Join(pairs, "\n"))
-
-	q := url.Values{}
-	for k, v := range fields {
-		q.Set(k, v)
-	}
-	q.Set("hash", hex.EncodeToString(sum))
-	return q.Encode()
 }

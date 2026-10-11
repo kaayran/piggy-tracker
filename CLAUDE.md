@@ -15,15 +15,14 @@ understanding the problem, input validation, error handling or accessibility.
 - All documentation, code, identifiers and commit messages in English.
 - No comments in code unless explicitly asked.
 - `api/openapi.yaml` is the source of truth. Change the contract first, then regenerate types for both sides — never hand-write what is generated.
-- Don't add UI kits or CSS frameworks. Telegram theme variables `--tg-theme-*` plus own components.
+- Don't add UI kits or CSS frameworks. Own CSS custom properties (light/dark via `prefers-color-scheme`) plus own components.
 - Scope is what has a spec in `docs/features/`. A new idea gets a spec first, then code — never the other way round.
 
 ## Commits
 
 - One short line, under 150 characters, imperative mood. No body unless the change is genuinely non-obvious.
 - No `Co-Authored-By`, no `Generated with`, no agent attribution.
-- Commit only when asked, or as part of the `ship` skill.
-- Work goes to `master` through a PR: finish the feature, then run the `ship` skill. Never push to `master`, never merge.
+- Plain commits, no pull requests. Commit when asked; push only when asked.
 
 Good: `add transaction create endpoint`
 Bad: `feat(api): add transaction create endpoint with validation, error handling and tests` + three paragraphs.

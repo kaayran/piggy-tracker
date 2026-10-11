@@ -72,12 +72,14 @@ func run() error {
 
 func (s *server) routes() http.Handler {
 	api := http.NewServeMux()
+	api.HandleFunc("POST /api/auth/logout", s.handleSignOut)
 	api.HandleFunc("GET /api/me", s.handleGetMe)
 	api.HandleFunc("GET /api/transactions", s.handleListTransactions)
 	api.HandleFunc("POST /api/transactions", s.handleCreateTransaction)
 	api.HandleFunc("DELETE /api/transactions/{id}", s.handleDeleteTransaction)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/telegram", s.handleSignIn)
 	mux.Handle("/api/", s.authenticate(api))
 	mux.Handle("/", spaHandler())
 	return mux

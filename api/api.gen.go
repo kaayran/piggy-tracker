@@ -145,6 +145,17 @@ type NewTransaction struct {
 	Type       TransactionType     `json:"type"`
 }
 
+// TelegramLogin Exactly what the Telegram Login Widget returns; every field takes part in the hash.
+type TelegramLogin struct {
+	AuthDate  int64   `json:"auth_date"`
+	FirstName string  `json:"first_name"`
+	Hash      string  `json:"hash"`
+	Id        int64   `json:"id"`
+	LastName  *string `json:"last_name,omitempty"`
+	PhotoUrl  *string `json:"photo_url,omitempty"`
+	Username  *string `json:"username,omitempty"`
+}
+
 // Transaction defines model for Transaction.
 type Transaction struct {
 	AccountId openapi_types.UUID `json:"account_id"`
@@ -182,7 +193,6 @@ type User struct {
 	BaseCurrency Currency `json:"base_currency"`
 	FirstName    string   `json:"first_name"`
 	Id           int64    `json:"id"`
-	LanguageCode *string  `json:"language_code,omitempty"`
 	Username     *string  `json:"username,omitempty"`
 }
 
@@ -194,6 +204,9 @@ type ListTransactionsParams struct {
 	// To Inclusive upper bound. Defaults to today.
 	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 }
+
+// SignInFormdataRequestBody defines body for SignIn for application/x-www-form-urlencoded ContentType.
+type SignInFormdataRequestBody = TelegramLogin
 
 // CreateTransactionJSONRequestBody defines body for CreateTransaction for application/json ContentType.
 type CreateTransactionJSONRequestBody = NewTransaction

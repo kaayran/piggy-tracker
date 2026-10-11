@@ -6,14 +6,6 @@ export type Category = components["schemas"]["Category"];
 export type Transaction = components["schemas"]["Transaction"];
 export type NewTransaction = components["schemas"]["NewTransaction"];
 
-export const tg = window.Telegram?.WebApp;
-
-export const inTelegram = Boolean(tg?.initData);
-
-// Outside Telegram there is no initData; a genuinely signed one from .env stands in for
-// local work. The server verifies it exactly like any other request.
-const initData = tg?.initData || import.meta.env.VITE_DEV_INIT_DATA || "";
-
 export class ApiError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
@@ -23,10 +15,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
-    headers: {
-      "X-Telegram-Init-Data": initData,
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-    },
+    headers: typeof init.body === "string" ? { "Content-Type": "application/json" } : {},
   });
   if (response.status === 204) return undefined as T;
   if (!response.ok) {
@@ -37,6 +26,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  signIn: (payload: URLSearchParams) =>
+    request<void>("/auth/telegram", { method: "POST", body: payload }),
+  signOut: () => request<void>("/auth/logout", { method: "POST" }),
   me: () => request<Me>("/me"),
   transactions: () => request<Transaction[]>("/transactions"),
   create: (body: NewTransaction) =>

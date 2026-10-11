@@ -1,12 +1,26 @@
 :root {
-  --bg: var(--tg-theme-bg-color, #ffffff);
-  --section-bg: var(--tg-theme-section-bg-color, var(--tg-theme-secondary-bg-color, #f2f2f7));
-  --text: var(--tg-theme-text-color, #000000);
-  --hint: var(--tg-theme-hint-color, #8e8e93);
-  --accent: var(--tg-theme-button-color, #2481cc);
-  --on-accent: var(--tg-theme-button-text-color, #ffffff);
-  --destructive: var(--tg-theme-destructive-text-color, #e53935);
+  --bg: #ffffff;
+  --section-bg: #f2f2f7;
+  --text: #000000;
+  --hint: #6e6e73;
+  --accent: #2481cc;
+  --on-accent: #ffffff;
+  --destructive: #d32f2f;
+  --positive: #2e7d32;
   --radius: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a;
+    --section-bg: #232427;
+    --text: #f2f2f2;
+    --hint: #9a9ba0;
+    --accent: #4ea4f6;
+    --on-accent: #0b1520;
+    --destructive: #ff6b6b;
+    --positive: #6fcf7a;
+  }
 }
 
 * {
@@ -242,7 +256,7 @@ select {
 }
 
 .sum.in {
-  color: #2e7d32;
+  color: var(--positive);
 }
 
 .delete {
@@ -251,4 +265,29 @@ select {
   color: var(--hint);
   min-width: 32px;
   min-height: 32px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--hint);
+}
+
+.signin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.signin h1 {
+  margin: 0;
+  color: var(--text);
+}
+
+.signin p {
+  margin: 0;
 }

@@ -3,9 +3,14 @@ create table users (
     id            bigint primary key,
     first_name    text not null,
     username      text,
-    language_code text,
     base_currency char(3) not null check (base_currency ~ '^[A-Z]{3}$'),
     created_at    timestamptz not null default now()
+);
+
+create table sessions (
+    token_hash bytea primary key,
+    user_id    bigint not null references users (id) on delete cascade,
+    expires_at timestamptz not null
 );
 
 create table contexts (
@@ -84,4 +89,5 @@ drop table categories;
 drop table accounts;
 drop table context_members;
 drop table contexts;
+drop table sessions;
 drop table users;

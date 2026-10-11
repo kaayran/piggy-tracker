@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { api, ApiError, inTelegram, tg, type Category, type Me, type Transaction } from "./api";
+import { useState } from "react";
+import { api, ApiError, type Category, type Me, type Transaction } from "./api";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -43,8 +43,7 @@ export function AddForm({ me, onCreated }: { me: Me; onCreated: (t: Transaction)
 
   const ready = Number(amount) > 0 && categoryId !== null && accountId !== "" && !saving;
 
-  const submit = useRef(() => {});
-  submit.current = async () => {
+  const submit = async () => {
     if (!ready) return;
     setSaving(true);
     setError(null);
@@ -63,41 +62,19 @@ export function AddForm({ me, onCreated }: { me: Me; onCreated: (t: Transaction)
       setNote("");
       setShowNote(false);
       setDate(today());
-      tg?.HapticFeedback.notificationOccurred("success");
     } catch (e) {
       setError((e as ApiError).message);
-      tg?.HapticFeedback.notificationOccurred("error");
     } finally {
       setSaving(false);
     }
   };
-
-  useEffect(() => {
-    const button = inTelegram ? tg!.MainButton : null;
-    if (!button) return;
-    const handler = () => submit.current();
-    button.setText("Save");
-    button.show();
-    button.onClick(handler);
-    return () => {
-      button.offClick(handler);
-      button.hide();
-    };
-  }, []);
-
-  useEffect(() => {
-    const button = inTelegram ? tg!.MainButton : null;
-    if (!button) return;
-    if (ready) button.enable();
-    else button.disable();
-  }, [ready]);
 
   return (
     <form
       className="add"
       onSubmit={(e) => {
         e.preventDefault();
-        submit.current();
+        submit();
       }}
     >
       <div className="kinds" role="group" aria-label="Transaction type">
@@ -185,11 +162,9 @@ export function AddForm({ me, onCreated }: { me: Me; onCreated: (t: Transaction)
         </p>
       )}
 
-      {!inTelegram && (
-        <button type="submit" className="save" disabled={!ready}>
-          Save
-        </button>
-      )}
+      <button type="submit" className="save" disabled={!ready}>
+        {saving ? "Saving…" : "Save"}
+      </button>
     </form>
   );
 }
