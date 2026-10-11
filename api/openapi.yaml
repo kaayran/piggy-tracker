@@ -15,7 +15,8 @@ paths:
       operationId: signIn
       summary: Exchange a Telegram Login Widget payload for a session cookie
       description: >
-        Verifies the payload, creates the user on first sign-in and sets the session cookie.
+        Verifies the payload, creates the user with their personal context, a default
+        account and the default category set on first sign-in, and sets the session cookie.
         Refuses cross-site requests.
       security: []
       requestBody:
@@ -44,9 +45,6 @@ paths:
     get:
       operationId: getMe
       summary: Current user with their personal context, accounts and categories
-      description: >
-        Creates the personal context, a default account and the default category set on
-        first call. Idempotent.
       responses:
         "200":
           description: OK

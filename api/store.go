@@ -59,8 +59,25 @@ var defaultIncomeCategories = []defaultCategory{
 	{name: "Other", icon: "💸"},
 }
 
-// loadMe creates the personal context, a starting account and the default categories on
-// first call, and returns the same picture on every call after that.
+// ensurePersonalContext gives a user their personal context, a starting account and the
+// default categories the first time it runs for them, and does nothing after that.
+func ensurePersonalContext(ctx context.Context, tx pgx.Tx, uid int64) error {
+	var id openapi_types.UUID
+	var currency string
+	err := tx.QueryRow(ctx, `
+		insert into contexts (kind, name, owner_id, base_currency)
+		select 'personal', first_name, id, base_currency from users where id = $1
+		on conflict (owner_id) where kind = 'personal' do nothing
+		returning id, base_currency`, uid).Scan(&id, &currency)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return seedContext(ctx, tx, id, uid, currency)
+}
+
 func (s *server) loadMe(ctx context.Context, uid int64) (Me, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -76,30 +93,13 @@ func (s *server) loadMe(ctx context.Context, uid int64) (Me, error) {
 		return Me{}, err
 	}
 
-	created := true
 	err = tx.QueryRow(ctx, `
-		insert into contexts (kind, name, owner_id, base_currency)
-		values ('personal', $1, $2, $3)
-		on conflict (owner_id) where kind = 'personal' do nothing
-		returning id, kind, name, owner_id, base_currency`,
-		me.User.FirstName, uid, me.User.BaseCurrency,
+		select id, kind, name, owner_id, base_currency
+		from contexts where owner_id = $1 and kind = 'personal'`,
+		uid,
 	).Scan(&me.Context.Id, &me.Context.Kind, &me.Context.Name, &me.Context.OwnerId, &me.Context.BaseCurrency)
-	if errors.Is(err, pgx.ErrNoRows) {
-		created = false
-		err = tx.QueryRow(ctx, `
-			select id, kind, name, owner_id, base_currency
-			from contexts where owner_id = $1 and kind = 'personal'`,
-			uid,
-		).Scan(&me.Context.Id, &me.Context.Kind, &me.Context.Name, &me.Context.OwnerId, &me.Context.BaseCurrency)
-	}
 	if err != nil {
 		return Me{}, err
-	}
-
-	if created {
-		if err := seedContext(ctx, tx, me.Context.Id, uid, me.Context.BaseCurrency); err != nil {
-			return Me{}, err
-		}
 	}
 
 	if me.Accounts, err = listAccounts(ctx, tx, me.Context.Id); err != nil {

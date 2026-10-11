@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange a Telegram Login Widget payload for a session cookie
-         * @description Verifies the payload, creates the user on first sign-in and sets the session cookie. Refuses cross-site requests.
+         * @description Verifies the payload, creates the user with their personal context, a default account and the default category set on first sign-in, and sets the session cookie. Refuses cross-site requests.
          */
         post: operations["signIn"];
         delete?: never;
@@ -48,10 +48,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Current user with their personal context, accounts and categories
-         * @description Creates the personal context, a default account and the default category set on first call. Idempotent.
-         */
+        /** Current user with their personal context, accounts and categories */
         get: operations["getMe"];
         put?: never;
         post?: never;

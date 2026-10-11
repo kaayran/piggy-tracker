@@ -148,6 +148,9 @@ func (s *server) signIn(ctx context.Context, u tgUser, acceptLanguage string) (s
 	); err != nil {
 		return "", err
 	}
+	if err := ensurePersonalContext(ctx, tx, u.ID); err != nil {
+		return "", err
+	}
 	if _, err := tx.Exec(ctx, `delete from sessions where expires_at < now()`); err != nil {
 		return "", err
 	}
