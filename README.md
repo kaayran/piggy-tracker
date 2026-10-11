@@ -29,14 +29,17 @@ with their slice of the data model — in [docs/features](./docs/features).
 
 ```sh
 cp .env.example .env      # fill in BOT_TOKEN and VITE_BOT_USERNAME of the dev bot
-make devlogin             # prints a signed login payload → paste into VITE_DEV_LOGIN
-make dev                  # Postgres in Docker, Go on :8080, Vite on :5173
+make dev                  # Postgres in Docker, Go on :8080, Vite on :5173 → http://localhost:5173
 ```
 
-The login widget only renders on the domain set for the bot in BotFather (`/setdomain`), so on
-`localhost` the sign-in screen offers a dev button instead. It posts the payload from
-`VITE_DEV_LOGIN`, which the server verifies like any other — it is signed with the same bot token
-and expires after 24 hours. There is no auth bypass.
+The login widget only renders on the domain set for the bot in BotFather (`/setdomain`). On
+`localhost` the sign-in screen offers three dev profiles instead — Ann and Bob for collaboration,
+Carl as a solo user (see [auth](./docs/features/auth.md#dev-profiles)). Their payloads are signed
+with the real bot token by the Vite dev server and verified by the API like any other; there is
+no auth bypass.
+
+Cookies are per host, so two profiles can be signed in side by side: one on
+`http://localhost:5173`, the other on `http://127.0.0.1:5173`, or in a private window.
 
 Migrations run from the binary at startup.
 

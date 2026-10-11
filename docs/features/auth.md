@@ -24,8 +24,23 @@ website.
 - **Sign out** deletes the session row and clears the cookie.
 - **Signed out** → every API call answers `401`, and the site shows the sign-in screen.
 - The bot's domain is set in BotFather (`/setdomain`); the widget works only there. No auth
-  bypass in development: work happens on the dev domain with the dev bot, or locally with a
-  payload genuinely signed by the dev bot's token (`make devlogin`).
+  bypass in development: work happens on the dev domain with the dev bot, or locally through
+  the dev profiles below.
+
+## Dev profiles
+
+Three fixed users for local work, signed in with one click on the sign-in screen:
+
+| Profile | Telegram id | Used for |
+|---|---|---|
+| Ann | 1 | group owner in collaboration checks |
+| Bob | 2 | group member in collaboration checks |
+| Carl | 3 | a solo tracker; must never see anything of Ann's or Bob's |
+
+The Vite dev server signs their payloads with the dev bot's `BOT_TOKEN` on every request, so the
+token never reaches the browser and nothing expires. The Go server verifies them like any real
+widget payload. The endpoint answers only on `localhost`/`127.0.0.1` and does not exist in a
+production build.
 
 ## Data model
 
